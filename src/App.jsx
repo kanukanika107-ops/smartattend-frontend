@@ -70,6 +70,7 @@ export default function App() {
   const [studentPage, setStudentPage] = useState(1);
   const [studentsPerPage, setStudentsPerPage] = useState(10);
   const [isDragging, setIsDragging] = useState(false);
+  const [studentPhotoPreview, setStudentPhotoPreview] = useState("");
   const [editStudent, setEditStudent] = useState(null);
   const [editForm, setEditForm] = useState({
     name: "",
@@ -125,6 +126,18 @@ export default function App() {
   const noticeTimer = useRef(null);
   const socketRef = useRef(null);
   const qrTimerRef = useRef(null);
+
+  useEffect(() => {
+    if (!studentForm.photoFile) {
+      setStudentPhotoPreview("");
+      return undefined;
+    }
+
+    const previewUrl = URL.createObjectURL(studentForm.photoFile);
+    setStudentPhotoPreview(previewUrl);
+
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [studentForm.photoFile]);
 
   const requestJson = async (path, options = {}, auth = true) => {
     const response = await fetch(`${baseUrl}${path}`, {
@@ -815,6 +828,34 @@ export default function App() {
     }
   };
 
+  const removeStudent = async (studentId) => {
+    if (!token) {
+      setMessage("Please login first.");
+      return;
+    }
+    const confirmed = window.confirm("Remove this student from the selected class?");
+    if (!confirmed) {
+      return;
+    }
+    setLoading(true);
+    try {
+      const response = await fetch(`${baseUrl}/api/students/${studentId}`, {
+        method: "DELETE",
+        headers: authHeaders
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.error || "Unable to remove student");
+      }
+      setMessage(data.message || "Student removed");
+      await fetchStudents();
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const addStudent = async (event) => {
     event.preventDefault();
     if (!token || !selectedClassId) {
@@ -1045,12 +1086,16 @@ export default function App() {
           ))}
         </div>
 
-        <div className="sidebar-card">
-          <h4>Backend</h4>
-          <label>Base URL</label>
-          <input value={baseUrl} placeholder="https://..." disabled />
+        <div className="sidebar-card sidebar-backend-card">
+          <div className="sidebar-card-head">
+            <div>
+              <h4>Backend</h4>
+              <p>Live API connected</p>
+            </div>
+            <span className="status-pill status-pill-soft">Ready</span>
+          </div>
           <p className="hint">
-            Base URL locked for demo stability. Live URL comes from env or fallback.
+            Frontend is already using the live Render API in the background.
           </p>
           <button className="secondary" onClick={fetchClasses}>
             Refresh Classes
@@ -1724,8 +1769,16 @@ export default function App() {
                     }
                   />
                 </label>
-                {studentForm.photoName && (
-                  <p className="hint">Selected file: {studentForm.photoName}</p>
+                {studentPhotoPreview && (
+                  <div className="photo-preview">
+                    <img src={studentPhotoPreview} alt="Selected student" />
+                    <div>
+                      <strong>Photo selected</strong>
+                      <p className="hint">
+                        {studentForm.photoName || "Preview from your local device"}
+                      </p>
+                    </div>
+                  </div>
                 )}
                 <button disabled={loading} type="submit">
                   Add Student
@@ -1816,6 +1869,13 @@ export default function App() {
                     </div>
                     <div className="list-actions">
                       <div className="tag">Active</div>
+                      <button
+                        className="danger"
+                        onClick={() => removeStudent(student._id)}
+                        disabled={loading}
+                      >
+                        Remove
+                      </button>
                     </div>
                   </div>
                 ))}
