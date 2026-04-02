@@ -47,11 +47,11 @@ export default function App() {
     () => localStorage.getItem("smartattend.baseUrl") || ENV_BASE_URL
   );
   const [token, setToken] = useState(
-    () => localStorage.getItem("smartattend.token") || ""
+    () => sessionStorage.getItem("smartattend.token") || ""
   );
   const [loginForm, setLoginForm] = useState({
-    email: "faculty@test.com",
-    password: "123456"
+    email: "",
+    password: ""
   });
   const [loginStatus, setLoginStatus] = useState("");
   const [loading, setLoading] = useState(false);
@@ -126,6 +126,9 @@ export default function App() {
   const noticeTimer = useRef(null);
   const socketRef = useRef(null);
   const qrTimerRef = useRef(null);
+  const loginEmailRef = useRef(null);
+  const loginPasswordRef = useRef(null);
+  const loginButtonRef = useRef(null);
 
   useEffect(() => {
     if (!studentForm.photoFile) {
@@ -429,10 +432,10 @@ export default function App() {
 
   useEffect(() => {
     if (token) {
-      localStorage.setItem("smartattend.token", token);
-    } else {
-      localStorage.removeItem("smartattend.token");
+      sessionStorage.setItem("smartattend.token", token);
+      return;
     }
+    sessionStorage.removeItem("smartattend.token");
   }, [token]);
 
   useEffect(() => {
@@ -464,6 +467,12 @@ export default function App() {
       setCheckins([]);
     }
   }, [selectedClassId]);
+
+  useEffect(() => {
+    if (!token) {
+      loginEmailRef.current?.focus();
+    }
+  }, [token]);
 
   useEffect(() => {
     if (token && activeTab === "analytics") {
@@ -1003,47 +1012,81 @@ export default function App() {
   const pageStart = (studentPage - 1) * studentsPerPage;
   const paginatedStudents = students.slice(pageStart, pageStart + studentsPerPage);
 
+  const handleLoginFieldKeyDown = (event, nextRef) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      nextRef.current?.focus();
+    }
+  };
+
   if (!token) {
     return (
       <div className="app auth-only">
         <main className="content auth-content">
-          <header className="topbar">
-            <div>
-              <h1>SmartAttend Login</h1>
-              <p>Enter faculty credentials to access the dashboard.</p>
-            </div>
-          </header>
           {notice && <div className="notice">{notice}</div>}
-          <section className="panel login-panel">
-            <div>
-              <h2>Faculty Login</h2>
-              <p>Use faculty credentials to manage classes and students.</p>
+          <section className="login-shell">
+            <div className="login-hero panel">
+              <p className="login-kicker">SmartAttend</p>
+              <h1>SmartAttend Login</h1>
+              <p className="login-intro">
+                Enter faculty credentials to access the dashboard.
+              </p>
+              <div className="login-points">
+                <div>
+                  <strong>Live QR</strong>
+                  <span>Manage sessions and attendance in real time.</span>
+                </div>
+                <div>
+                  <strong>Student Tools</strong>
+                  <span>Add students, upload photos, and keep records organized.</span>
+                </div>
+              </div>
+              <p className="login-note">Tip: Enter moves you to the next field.</p>
             </div>
-            <form className="form-row" onSubmit={handleLogin}>
-              <input
-                type="email"
-                value={loginForm.email}
-                onChange={(event) =>
-                  setLoginForm((prev) => ({ ...prev, email: event.target.value }))
-                }
-                placeholder="faculty email"
-              />
-              <input
-                type="password"
-                value={loginForm.password}
-                onChange={(event) =>
-                  setLoginForm((prev) => ({
-                    ...prev,
-                    password: event.target.value
-                  }))
-                }
-                placeholder="password"
-              />
-              <button disabled={loading} type="submit">
-                {loading ? "Please wait..." : "Login"}
-              </button>
-            </form>
-            {loginStatus && <p className="hint">{loginStatus}</p>}
+            <div className="panel login-panel login-card">
+              <div className="login-card-head">
+                <h2>Faculty Login</h2>
+                <p>Use your email and password to manage classes and students.</p>
+              </div>
+              <form className="login-form" autoComplete="off" onSubmit={handleLogin}>
+                <label className="login-field">
+                  <span>Email</span>
+                  <input
+                    ref={loginEmailRef}
+                    type="email"
+                    value={loginForm.email}
+                    onChange={(event) =>
+                      setLoginForm((prev) => ({ ...prev, email: event.target.value }))
+                    }
+                    onKeyDown={(event) => handleLoginFieldKeyDown(event, loginPasswordRef)}
+                    placeholder="Enter faculty email"
+                    autoComplete="username"
+                    autoFocus
+                  />
+                </label>
+                <label className="login-field">
+                  <span>Password</span>
+                  <input
+                    ref={loginPasswordRef}
+                    type="password"
+                    value={loginForm.password}
+                    onChange={(event) =>
+                      setLoginForm((prev) => ({
+                        ...prev,
+                        password: event.target.value
+                      }))
+                    }
+                    onKeyDown={(event) => handleLoginFieldKeyDown(event, loginButtonRef)}
+                    placeholder="Enter password"
+                    autoComplete="current-password"
+                  />
+                </label>
+                <button ref={loginButtonRef} disabled={loading} type="submit">
+                  {loading ? "Please wait..." : "Login to Dashboard"}
+                </button>
+              </form>
+              {loginStatus && <p className="hint">{loginStatus}</p>}
+            </div>
           </section>
         </main>
       </div>
@@ -1118,6 +1161,8 @@ export default function App() {
               className="ghost"
               onClick={() => {
                 setToken("");
+                setLoginForm({ email: "", password: "" });
+                setLoginStatus("");
                 setActiveTab("dashboard");
               }}
             >
